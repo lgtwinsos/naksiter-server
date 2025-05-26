@@ -94,3 +94,7 @@ def logs():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
+
+@app.route("/ui")
+def ui_page():
+    return open("naksiter_ui_page.html", encoding="utf-8").read()
