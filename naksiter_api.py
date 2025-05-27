@@ -53,7 +53,10 @@ def check():
 
 @app.route("/preview")
 def preview():
-    url = request.args.get("url", "")
+    url = request.args.get("url", "").strip()
+    if not url.startswith("http"):
+        url = "https://" + url  # ✅ 자동 보정 추가
+
     try:
         r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
         summary = extract_text_features(r.text)
@@ -69,6 +72,7 @@ def preview():
         return jsonify({"preview": answer})
     except Exception as e:
         return jsonify({"preview": f"[오류] 사이트 분석 실패 - {str(e)}"})
+
 
 @app.route("/report", methods=["POST"])
 def report():
