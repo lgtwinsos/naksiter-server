@@ -33,13 +33,25 @@ def prompt_gpt_analysis(summary_text):
 
 @app.route("/check")
 def check():
-    url = request.args.get("url", "")
+    url = request.args.get("url", "").strip()
+    if not url.startswith("http"):
+        url = "https://" + url
+
     score = sum(1 for keyword in DANGER_KEYWORDS if keyword in url.lower())
     trusted = is_similar_domain(url)
     report_count = report_counts.get(url, 0)
 
-    if trusted:
+    # ✅ 실제 접속 확인 추가
+    try:
+        resp = requests.get(url, timeout=3)
+        reachable = resp.status_code < 500
+    except:
+        reachable = False
+
+    if trusted and reachable:
         result = "[정상] 신뢰된 도메인입니다."
+    elif trusted and not reachable:
+        result = "[주의] 신뢰 도메인이지만 현재 접속 불가"
     elif score >= 3:
         result = "[위험] 피싱 가능성이 매우 높습니다."
     elif score >= 1:
@@ -50,6 +62,7 @@ def check():
         result = "[정상] 안전한 링크로 판단됩니다."
 
     return jsonify({"result": result, "신고수": report_count})
+
 
 @app.route("/preview")
 def preview():
