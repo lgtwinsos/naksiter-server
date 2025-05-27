@@ -29,7 +29,7 @@ def extract_text_features(html_str):
     return visible_text[:1000]
 
 def prompt_gpt_analysis(summary_text):
-    return f'''이 웹페이지는 다음과 같은 내용을 담고 있습니다:\\n\\n"{summary_text}"\\n\\n해당 페이지가 피싱 가능성이 있는지 판단해주세요.\\n- 로그인 폼이 있고\\n- 실제 도메인과 다른 주소일 경우\\n'위험',\\n- 광고성이나 애매하면 '경고',\\n- 정상적이면 '정상' 으로 답변해주세요.'''
+    return f'''이 웹페이지는 다음과 같은 내용을 담고 있습니다:\n\n"{summary_text}"\n\n해당 페이지가 피싱 가능성이 있는지 판단해주세요.\n- 로그인 폼이 있고\n- 실제 도메인과 다른 주소일 경우\n'위험',\n- 광고성이나 애매하면 '경고',\n- 정상적이면 '정상' 으로 답변해주세요.'''
 
 @app.route("/check")
 def check():
@@ -91,10 +91,10 @@ def report():
 def logs():
     return jsonify({"신고내역": reports[-10:]})
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
 @app.route("/ui")
 def ui_page():
     return open("naksiter_ui_page.html", encoding="utf-8").read()
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
