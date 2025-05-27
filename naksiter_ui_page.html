@@ -1,91 +1,49 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>낚시터감별기 UI</title>
+  <title>낚시터감별기</title>
   <style>
-    body { font-family: 'Segoe UI', sans-serif; max-width: 720px; margin: auto; padding: 40px; background: #f9f9f9; }
-    h2 { color: #2c3e50; }
-    input, textarea { width: 100%; padding: 10px; margin: 10px 0; border-radius: 4px; border: 1px solid #ccc; }
-    button { padding: 10px 16px; border: none; border-radius: 4px; cursor: pointer; }
-    #checkBtn { background-color: #4CAF50; color: white; }
-    #reportBtn { background-color: #e74c3c; color: white; }
-    #checkResult, #aiResult, #reportStatus { margin-top: 15px; padding: 10px; border-radius: 5px; font-size: 15px; }
-    #checkResult { background-color: #fff; }
-    .danger { color: #e74c3c; font-weight: bold; }
-    .warn { color: #f39c12; font-weight: bold; }
-    .safe { color: #2ecc71; font-weight: bold; }
-    iframe.preview { margin-top: 20px; width: 100%; height: 300px; border: 1px solid #ccc; }
-    .http-warning { background: #fff3cd; color: #856404; padding: 10px; border: 1px solid #ffeeba; border-radius: 4px; margin-top: 10px; }
-    #logs { margin-top: 20px; font-size: 14px; background: #fff; padding: 10px; border-radius: 5px; }
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    input[type=text] { width: 100%; padding: 10px; margin-top: 10px; }
+    button { padding: 10px 20px; margin-top: 10px; }
+    #result, #ai-result { margin-top: 15px; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>🎣 낚시터감별기</h2>
-  <input id="urlInput" type="text" placeholder="https://example.com">
-  <div id="httpWarn" class="http-warning" style="display:none;">⚠️ 보안 경고: HTTPS가 아닌 링크입니다!</div>
-  <button id="checkBtn">감별하기</button>
-  <div id="checkResult"></div>
-  <div id="aiResult"></div>
-  <iframe id="previewFrame" class="preview" style="display:none;"></iframe>
+  <h1>🎣 낚시터감별기</h1>
+  <input id="url" type="text" placeholder="예: login.naver.com">
+  <button onclick="check()">감별하기</button>
+  <div id="result"></div>
+  <div id="ai-result"></div>
 
-  <h4 style="margin-top:40px;">🚨 수상한 링크를 발견하셨나요?</h4>
-  <textarea id="reportUrl" placeholder="신고할 URL 입력"></textarea>
-  <button id="reportBtn">신고하기</button>
-  <div id="reportStatus"></div>
+  <h3>🚨 수상한 링크를 발견하셨나요?</h3>
+  <input id="report-url" type="text" placeholder="신고할 URL 입력">
+  <button onclick="report()">신고하기</button>
 
-  <button id="loadLogs" style="margin-top:30px; background:#34495e; color:white;">최근 신고내역 보기</button>
-  <div id="logs"></div>
+  <script>
+    async function check() {
+      const url = document.getElementById("url").value;
+      const res = await fetch("/check?url=" + encodeURIComponent(url));
+      const data = await res.json();
+      document.getElementById("result").innerText = "🔍 결과: " + data.result + " (신고 수: " + data.신고수 + ")";
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-const API = 'https://naksiter.onrender.com';
+      // AI 분석
+      const ai = await fetch("/preview?url=" + encodeURIComponent(url));
+      const aires = await ai.json();
+      document.getElementById("ai-result").innerText = "🧠 AI 분석: " + aires.preview;
+    }
 
-function getColorClass(result) {
-  if (result.includes("위험")) return "danger";
-  if (result.includes("경고") || result.includes("주의")) return "warn";
-  return "safe";
-}
-
-$('#checkBtn').click(function() {
-  const url = $('#urlInput').val().trim();
-  if (!url) return alert("URL을 입력해주세요!");
-
-  $('#checkResult, #aiResult').text("감별 중...").removeClass().show();
-  $('#previewFrame').hide();
-  $('#httpWarn').toggle(url.startsWith("http://"));
-
-  $.get(`${API}/check`, { url }).done(data => {
-    const cls = getColorClass(data.result);
-    $('#checkResult').html(`🔎 결과: <span class="${cls}">${data.result}</span> (신고 수: ${data.신고수})`);
-  });
-
-  $.get(`${API}/preview`, { url }).done(res => {
-    $('#aiResult').html("🧠 AI 분석: " + res.preview).addClass("safe");
-  });
-
-  $('#previewFrame').attr("src", url).show();
-});
-
-$('#reportBtn').click(function() {
-  const url = $('#reportUrl').val().trim();
-  if (!url) return alert("신고할 URL을 입력해주세요!");
-  $.ajax({
-    type: "POST",
-    url: `${API}/report`,
-    contentType: "application/json",
-    data: JSON.stringify({ url }),
-    success: res => $('#reportStatus').text(res.message)
-  });
-});
-
-$('#loadLogs').click(function() {
-  $.get(`${API}/logs`, data => {
-    const html = data.신고내역.map(log => `🕓 ${new Date(log.timestamp * 1000).toLocaleString()} → ${log.url}`).join("<br>");
-    $('#logs').html(html || '최근 신고 없음');
-  });
-});
-</script>
+    async function report() {
+      const url = document.getElementById("report-url").value;
+      const res = await fetch("/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      alert(data.message);
+    }
+  </script>
 </body>
 </html>

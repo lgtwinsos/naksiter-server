@@ -6,25 +6,40 @@ import html
 import time
 import os
 import openai
+from difflib import SequenceMatcher
 
 app = Flask(__name__)
 
-DANGER_KEYWORDS = ["login", "secure", "verify", "account", "update", "confirm"]
-TRUSTED_DOMAINS = ["naver.com", "kakao.com", "google.com", "daum.net"]
+# 1. 신뢰 도메인 (정확히 일치만 허용)
+TRUSTED_DOMAINS = ["naver.com", "kakao.com", "google.com", "daum.net", "youtube.com", "amazon.com"]
 
+# 2. 피싱 유도 키워드
+DANGER_KEYWORDS = ["login", "secure", "verify", "account", "update", "confirm"]
+
+# 3. 사용자 신고 관련 메모리 저장소
 reports = []
 report_counts = {}
 report_ips = {}
 
+# 4. GPT 키 설정
 openai.api_key = os.getenv("GPT_API_KEY")
 
-def is_similar_domain(url):
-    parsed = urlparse(url)
-    host = parsed.netloc.lower()
-    return any(host.endswith(trusted) for trusted in TRUSTED_DOMAINS)
+# 도메인 유사도 측정 함수
+def is_similar(a, b):
+    return SequenceMatcher(None, a, b).ratio()
 
+# 신뢰 도메인인지 정확히 체크 (정확 일치 + www. 제거)
+def is_trusted_domain(host):
+    h = host.lower()
+    return h in TRUSTED_DOMAINS or (h.startswith("www.") and h[4:] in TRUSTED_DOMAINS)
+
+# 철자 유사 피싱 감지 (예: wwwyoutube.com)
+def is_suspicious_similar_domain(host):
+    return any(is_similar(host, td) > 0.85 and host != td for td in TRUSTED_DOMAINS)
+
+# 페이지 요약용 텍스트 추출
 def extract_text_features(html_str):
-    tags = re.findall(r'<(title|meta|form|input|button)[^>]*>(.*?)</?\\1?>?', html_str, re.I|re.S)
+    tags = re.findall(r'<(title|meta|form|input|button)[^>]*>(.*?)</?\1?>?', html_str, re.I|re.S)
     visible_text = html.unescape(' '.join([text for tag, text in tags]))
     return visible_text[:1000]
 
@@ -37,38 +52,46 @@ def check():
     if not url.startswith("http"):
         url = "https://" + url
 
-    score = sum(1 for keyword in DANGER_KEYWORDS if keyword in url.lower())
-    trusted = is_similar_domain(url)
-    report_count = report_counts.get(url, 0)
-
-    # ✅ 실제 접속 확인 추가
     try:
-        resp = requests.get(url, timeout=3)
-        reachable = resp.status_code < 500
-    except:
-        reachable = False
+        parsed = urlparse(url)
+        host = parsed.netloc
+        score = sum(1 for keyword in DANGER_KEYWORDS if keyword in url.lower())
+        report_count = report_counts.get(url, 0)
 
-    if trusted and reachable:
-        result = "[정상] 신뢰된 도메인입니다."
-    elif trusted and not reachable:
-        result = "[주의] 신뢰 도메인이지만 현재 접속 불가"
-    elif score >= 3:
-        result = "[위험] 피싱 가능성이 매우 높습니다."
-    elif score >= 1:
-        result = "[경고] 의심스러운 URL입니다."
-    elif report_count >= 3:
-        result = "[주의] 사용자 신고가 누적된 URL입니다."
-    else:
-        result = "[정상] 안전한 링크로 판단됩니다."
+        # 접속 테스트
+        try:
+            resp = requests.get(url, timeout=3, headers={"User-Agent": "Mozilla/5.0"})
+            reachable = resp.status_code < 500
+        except:
+            reachable = False
 
-    return jsonify({"result": result, "신고수": report_count})
+        # 판단 로직
+        if is_trusted_domain(host) and reachable:
+            result = "[정상] 신뢰된 도메인입니다."
+        elif is_trusted_domain(host) and not reachable:
+            result = "[주의] 신뢰 도메인이지만 현재 접속 불가"
+        elif is_suspicious_similar_domain(host):
+            result = "[위험] 유명 도메인을 사칭한 유사 도메인입니다."
+        elif score >= 3:
+            result = "[위험] 피싱 가능성이 매우 높습니다."
+        elif score >= 1:
+            result = "[경고] 의심스러운 URL입니다."
+        elif report_count >= 3:
+            result = "[주의] 사용자 신고가 누적된 URL입니다."
+        elif not reachable:
+            result = "[경고] 도메인 접속 불가 - 위험 가능성 있음"
+        else:
+            result = "[정상] 안전한 링크로 판단됩니다."
 
+        return jsonify({"result": result, "신고수": report_count})
+    except Exception as e:
+        return jsonify({"result": f"[오류] URL 처리 실패 - {str(e)}", "신고수": 0})
 
 @app.route("/preview")
 def preview():
     url = request.args.get("url", "").strip()
     if not url.startswith("http"):
-        url = "https://" + url  # ✅ 자동 보정 추가
+        url = "https://" + url
 
     try:
         r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
@@ -85,7 +108,6 @@ def preview():
         return jsonify({"preview": answer})
     except Exception as e:
         return jsonify({"preview": f"[오류] 사이트 분석 실패 - {str(e)}"})
-
 
 @app.route("/report", methods=["POST"])
 def report():
