@@ -1,44 +1,120 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>낚시터감별기</title>
   <style>
     body {
-      font-family: 'Arial';
-      padding: 40px;
-      text-align: center;
+      font-family: "맑은 고딕", sans-serif;
+      padding: 30px;
+      max-width: 700px;
+      margin: auto;
     }
-    input, button {
-      padding: 10px;
-      width: 300px;
-      margin: 5px;
+    input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      font-size: 16px;
     }
-    #result {
-      margin-top: 20px;
+    button {
+      padding: 8px 20px;
+      font-size: 15px;
+      margin-top: 5px;
+    }
+    .section {
+      margin-top: 40px;
+      padding: 20px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+    .emoji {
+      font-size: 20px;
+    }
+    .highlight {
       font-weight: bold;
+      color: #0078D7;
     }
+    ul { padding-left: 20px; }
+    li { margin-bottom: 4px; }
   </style>
 </head>
 <body>
   <h1>🎣 낚시터감별기</h1>
 
-  <input type="text" id="urlInput" placeholder="예: https://login.naver.com">
-  <br>
-  <button onclick="checkURL()">감별하기</button>
+  <div class="section">
+    <input type="text" id="urlInput" placeholder="예: login.naver.com" />
+    <button onclick="checkURL()">감별하기</button>
+    <p class="emoji">🔍 결과: <span id="resultText"></span></p>
+    <p class="emoji">🧠 AI 분석: <span id="aiText"></span></p>
+  </div>
 
-  <div id="result">🔍 결과가 여기에 표시됩니다.</div>
+  <div class="section">
+    <h3 class="emoji">🚨 수상한 링크를 발견하셨나요?</h3>
+    <input type="text" id="reportUrl" placeholder="신고할 URL 입력" />
+    <button onclick="sendReport()">신고하기</button>
+    <p id="reportMsg"></p>
+  </div>
+
+  <div class="section">
+    <h3 class="emoji">📋 최근 신고 내역</h3>
+    <button onclick="loadLogs()">새로고침</button>
+    <ul id="logList"></ul>
+    <p id="logError" style="color: red;"></p>
+  </div>
 
   <script>
-    async function checkURL() {
-      const url = document.getElementById("urlInput").value;
-      const response = await fetch("https://naksiter.onrender.com/check", {
+    const SERVER_URL = "https://naksiter.onrender.com"; // 서버 주소
+
+    function checkURL() {
+      const url = document.getElementById("urlInput").value.trim();
+      document.getElementById("resultText").textContent = "감별 중...";
+      document.getElementById("aiText").textContent = "AI 분석 요청 중...";
+
+      fetch(`${SERVER_URL}/check?url=${encodeURIComponent(url)}`)
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("resultText").textContent = `${data.result} (신고 수: ${data["신고수"]})`;
+        });
+
+      fetch(`${SERVER_URL}/preview?url=${encodeURIComponent(url)}`)
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("aiText").textContent = data.preview;
+        })
+        .catch(err => {
+          document.getElementById("aiText").textContent = "[AI 분석 실패]";
+        });
+    }
+
+    function sendReport() {
+      const url = document.getElementById("reportUrl").value.trim();
+      fetch(`${SERVER_URL}/report`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url })
-      });
-      const data = await response.json();
-      document.getElementById("result").innerText = "🔍 결과: " + data.result;
+      })
+        .then(res => res.json())
+        .then(data => {
+          document.getElementById("reportMsg").textContent = data.message;
+        });
+    }
+
+    function loadLogs() {
+      fetch(`${SERVER_URL}/logs`)
+        .then(res => res.json())
+        .then(data => {
+          const list = document.getElementById("logList");
+          const err = document.getElementById("logError");
+          list.innerHTML = "";
+          err.textContent = "";
+          data["신고내역"].forEach(log => {
+            const li = document.createElement("li");
+            li.textContent = `[${log.time}] ${log.url} (IP: ${log.ip})`;
+            list.appendChild(li);
+          });
+        })
+        .catch(e => {
+          document.getElementById("logError").textContent = "❌ 오류 발생: " + e.message;
+        });
     }
   </script>
 </body>
