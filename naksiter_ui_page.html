@@ -4,45 +4,41 @@
   <meta charset="UTF-8">
   <title>낚시터감별기</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-    input[type=text] { width: 100%; padding: 10px; margin-top: 10px; }
-    button { padding: 10px 20px; margin-top: 10px; }
-    #result, #ai-result { margin-top: 15px; font-weight: bold; }
+    body {
+      font-family: 'Arial';
+      padding: 40px;
+      text-align: center;
+    }
+    input, button {
+      padding: 10px;
+      width: 300px;
+      margin: 5px;
+    }
+    #result {
+      margin-top: 20px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
   <h1>🎣 낚시터감별기</h1>
-  <input id="url" type="text" placeholder="예: login.naver.com">
-  <button onclick="check()">감별하기</button>
-  <div id="result"></div>
-  <div id="ai-result"></div>
 
-  <h3>🚨 수상한 링크를 발견하셨나요?</h3>
-  <input id="report-url" type="text" placeholder="신고할 URL 입력">
-  <button onclick="report()">신고하기</button>
+  <input type="text" id="urlInput" placeholder="예: https://login.naver.com">
+  <br>
+  <button onclick="checkURL()">감별하기</button>
+
+  <div id="result">🔍 결과가 여기에 표시됩니다.</div>
 
   <script>
-    async function check() {
-      const url = document.getElementById("url").value;
-      const res = await fetch("/check?url=" + encodeURIComponent(url));
-      const data = await res.json();
-      document.getElementById("result").innerText = "🔍 결과: " + data.result + " (신고 수: " + data.신고수 + ")";
-
-      // AI 분석
-      const ai = await fetch("/preview?url=" + encodeURIComponent(url));
-      const aires = await ai.json();
-      document.getElementById("ai-result").innerText = "🧠 AI 분석: " + aires.preview;
-    }
-
-    async function report() {
-      const url = document.getElementById("report-url").value;
-      const res = await fetch("/report", {
+    async function checkURL() {
+      const url = document.getElementById("urlInput").value;
+      const response = await fetch("https://naksiter.onrender.com/check", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ url: url })
       });
-      const data = await res.json();
-      alert(data.message);
+      const data = await response.json();
+      document.getElementById("result").innerText = "🔍 결과: " + data.result;
     }
   </script>
 </body>
