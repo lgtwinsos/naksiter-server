@@ -1,121 +1,55 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-  <meta charset="UTF-8" />
-  <title>낚시터감별기</title>
-  <style>
-    body {
-      font-family: "맑은 고딕", sans-serif;
-      padding: 30px;
-      max-width: 700px;
-      margin: auto;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 8px;
-      font-size: 16px;
-    }
-    button {
-      padding: 8px 20px;
-      font-size: 15px;
-      margin-top: 5px;
-    }
-    .section {
-      margin-top: 40px;
-      padding: 20px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-    }
-    .emoji {
-      font-size: 20px;
-    }
-    .highlight {
-      font-weight: bold;
-      color: #0078D7;
-    }
-    ul { padding-left: 20px; }
-    li { margin-bottom: 4px; }
-  </style>
-</head>
-<body>
-  <h1>🎣 낚시터감별기</h1>
+<div style="text-align:center;">
+  <h2>🔍 낚시터 감별기</h2>
+  <input type="text" id="urlInput" placeholder="URL을 입력하세요" style="width:60%; padding:8px;" />
+  <br><br>
+  <button onclick="checkURL()">검사하기</button>
+  <button onclick="reportURL()">신고하기</button>
+  <br><br>
+  <div id="resultBox"></div>
+  <hr>
+  <h4>🕵 최근 신고 내역</h4>
+  <pre id="logsBox">불러오는 중...</pre>
+</div>
 
-  <div class="section">
-    <input type="text" id="urlInput" placeholder="예: login.naver.com" />
-    <button onclick="checkURL()">감별하기</button>
-    <p class="emoji">🔍 결과: <span id="resultText"></span></p>
-    <p class="emoji">🧠 AI 분석: <span id="aiText"></span></p>
-  </div>
+<script>
+const API_BASE = "https://naksiter.onrender.com";
 
-  <div class="section">
-    <h3 class="emoji">🚨 수상한 링크를 발견하셨나요?</h3>
-    <input type="text" id="reportUrl" placeholder="신고할 URL 입력" />
-    <button onclick="sendReport()">신고하기</button>
-    <p id="reportMsg"></p>
-  </div>
+function checkURL() {
+  const url = document.getElementById("urlInput").value.trim();
+  if (!url) return alert("URL을 입력해 주세요.");
+  fetch(`${API_BASE}/check?url=${encodeURIComponent(url)}`)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("resultBox").innerText = data.result + `\n신고 수: ${data["신고수"]}`;
+    });
+}
 
-  <div class="section">
-    <h3 class="emoji">📋 최근 신고 내역</h3>
-    <button onclick="loadLogs()">새로고침</button>
-    <ul id="logList"></ul>
-    <p id="logError" style="color: red;"></p>
-  </div>
+function reportURL() {
+  const url = document.getElementById("urlInput").value.trim();
+  if (!url) return alert("신고할 URL을 입력해 주세요.");
+  fetch(`${API_BASE}/report`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url })
+  })
+    .then(res => res.json())
+    .then(data => {
+      alert(data.message);
+      loadLogs();  // 신고 후 자동 갱신
+    });
+}
 
-  <script>
-    const SERVER_URL = "https://naksiter.onrender.com"; // 서버 주소
+function loadLogs() {
+  fetch(`${API_BASE}/logs`)
+    .then(res => res.json())
+    .then(data => {
+      const logs = data["신고내역"] || [];
+      document.getElementById("logsBox").innerText =
+        logs.length > 0
+          ? logs.map(l => `📌 ${l.url} (${new Date(l.timestamp * 1000).toLocaleString()})`).join("\n")
+          : "최근 신고된 내역이 없습니다.";
+    });
+}
 
-    function checkURL() {
-      const url = document.getElementById("urlInput").value.trim();
-      document.getElementById("resultText").textContent = "감별 중...";
-      document.getElementById("aiText").textContent = "AI 분석 요청 중...";
-
-      fetch(`${SERVER_URL}/check?url=${encodeURIComponent(url)}`)
-        .then(res => res.json())
-        .then(data => {
-          document.getElementById("resultText").textContent = `${data.result} (신고 수: ${data["신고수"]})`;
-        });
-
-      fetch(`${SERVER_URL}/preview?url=${encodeURIComponent(url)}`)
-        .then(res => res.json())
-        .then(data => {
-          document.getElementById("aiText").textContent = data.preview;
-        })
-        .catch(err => {
-          document.getElementById("aiText").textContent = "[AI 분석 실패]";
-        });
-    }
-
-    function sendReport() {
-      const url = document.getElementById("reportUrl").value.trim();
-      fetch(`${SERVER_URL}/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: url })
-      })
-        .then(res => res.json())
-        .then(data => {
-          document.getElementById("reportMsg").textContent = data.message;
-        });
-    }
-
-    function loadLogs() {
-      fetch(`${SERVER_URL}/logs`)
-        .then(res => res.json())
-        .then(data => {
-          const list = document.getElementById("logList");
-          const err = document.getElementById("logError");
-          list.innerHTML = "";
-          err.textContent = "";
-          data["신고내역"].forEach(log => {
-            const li = document.createElement("li");
-            li.textContent = `[${log.time}] ${log.url} (IP: ${log.ip})`;
-            list.appendChild(li);
-          });
-        })
-        .catch(e => {
-          document.getElementById("logError").textContent = "❌ 오류 발생: " + e.message;
-        });
-    }
-  </script>
-</body>
-</html>
+loadLogs();
+</script>

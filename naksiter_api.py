@@ -10,26 +10,21 @@ import openai
 from difflib import SequenceMatcher
 
 app = Flask(__name__)
-CORS(app)  # CORS 활성화
+CORS(app)
 
-# 신뢰 도메인
 TRUSTED_DOMAINS = [
     "naver.com", "kakao.com", "google.com", "daum.net",
     "youtube.com", "amazon.com"
 ]
 
-# 피싱 키워드
 DANGER_KEYWORDS = ["login", "secure", "verify", "account", "update", "confirm"]
 
-# 신고 관련 메모리
 reports = []
 report_counts = {}
 report_ips = {}
 
-# GPT API 키
 openai.api_key = os.getenv("GPT_API_KEY")
 
-# 도메인 유사도 측정
 def is_similar(a, b):
     return SequenceMatcher(None, a, b).ratio()
 
@@ -46,7 +41,7 @@ def extract_text_features(html_str):
     return visible_text[:1000]
 
 def prompt_gpt_analysis(summary_text):
-    return f'''이 웹페이지는 다음과 같은 내용을 담고 있습니다:\n\n"{summary_text}"\n\n해당 페이지가 피싱 가능성이 있는지 판단해주세요.\n- 로그인 폼이 있고\n- 실제 도메인과 다른 주소일 경우\n'위험',\n- 광고성이나 애매하면 '경고',\n- 정상적이면 '정상' 으로 답변해주세요.'''
+    return f"""이 웹페이지는 다음과 같은 내용을 담고 있습니다:\n\n\"{summary_text}\"\n\n해당 페이지가 피싱 가능성이 있는지 판단해주세요.\n- 로그인 폼이 있고\n- 실제 도메인과 다른 주소일 경우\n'위험',\n- 광고성이나 애매하면 '경고',\n- 정상적이면 '정상' 으로 답변해주세요."""
 
 @app.route("/check")
 def check():
@@ -87,32 +82,18 @@ def check():
     except Exception as e:
         return jsonify({"result": f"[오류] URL 처리 실패 - {str(e)}", "신고수": 0})
 
-@app.route("/preview")
-def preview():
-    url = request.args.get("url", "").strip()
-    if not url.startswith("http"):
-        url = "https://" + url
-
-    try:
-        r = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"})
-        summary = extract_text_features(r.text)
-        prompt = prompt_gpt_analysis(summary)
-
-        try:
-            gpt_response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "당신은 보안 전문가입니다."},
-                    {"role": "user", "content": prompt}
-                ]
-            )
-            answer = gpt_response["choices"][0]["message"]["content"]
-        except Exception as gpt_err:
-            answer = f"[AI 분석 사용 불가] {str(gpt_err)}"
-
-        return jsonify({"preview": answer})
-    except Exception as e:
-        return jsonify({"preview": f"[오류] 사이트 분석 실패 - {str(e)}"})
+@app.route("/logs")
+def logs():
+    formatted = [
+        {
+            "url": r["url"],
+            "ip": r["ip"].rsplit('.', 1)[0] + ".xxx",
+            "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(r["timestamp"])),
+            "timestamp": r["timestamp"]
+        }
+        for r in reports[-10:]
+    ]
+    return jsonify({"신고내역": formatted})
 
 @app.route("/report", methods=["POST"])
 def report():
@@ -132,18 +113,6 @@ def report():
         return jsonify({"message": "신고가 접수되었습니다."})
 
     return jsonify({"message": "잘못된 요청입니다."})
-
-@app.route("/logs")
-def logs():
-    formatted = [
-        {
-            "url": r["url"],
-            "ip": r["ip"],
-            "time": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(r["timestamp"]))
-        }
-        for r in reports[-10:]
-    ]
-    return jsonify({"신고내역": formatted})
 
 @app.route("/ui")
 def ui_page():
